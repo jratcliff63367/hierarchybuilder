@@ -44,6 +44,16 @@ typedef std::vector< Link *> LinkVector;
 class Link : public HierarchyLink
 {
 public:
+	Link(void)
+	{
+	}
+	virtual ~Link(void)
+	{
+		for (auto &i : mChildren)
+		{
+			delete i;
+		}
+	}
 
 	enum LinkOrder
 	{
@@ -278,6 +288,11 @@ public:
 #if LOG_CHAIN
 		debugPrint();
 #endif
+	}
+
+	virtual ~Hierarchy(void)
+	{
+		delete mRoot;
 	}
 
 	bool merge(Hierarchy *other)
