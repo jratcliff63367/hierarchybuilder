@@ -52,6 +52,7 @@ namespace HIERARCHY_BUILDER
 class HierarchyLink
 {
 public:
+	virtual void printChain(uint32_t depth) const = 0;
 	// Return the number of children links
 	virtual uint32_t getChildCount(void) const = 0;
 

@@ -122,7 +122,7 @@ public:
 		return ret;
 	}
 
-	void indent(uint32_t depth)
+	void indent(uint32_t depth) const
 	{
 		for (uint32_t i = 0; i < depth; i++)
 		{
@@ -130,7 +130,7 @@ public:
 		}
 	}
 
-	void printChain(uint32_t depth)
+	virtual void printChain(uint32_t depth) const override final
 	{
 		for (auto &i : mChildren)
 		{
@@ -194,40 +194,6 @@ public:
 		}
 	}
 
-	bool hasRigidBody(const StringVector &rigidBodies) const
-	{
-		bool ret = false;
-		for (auto &i : rigidBodies)
-		{
-			if (mRigidBody == i)
-			{
-				ret = true;
-				break;
-			}
-		}
-		return ret;
-	}
-
-	// A loop joint is any joint which refers back to a rigid body already in the hierarchy
-	// Performs a recursive descent of the hierarchy and builds up a list of all rigid bodies
-	// in it.  If we ever encounter a rigid body already in the rigid body list, that means we are a
-	// loop joint and are flagged accordingly
-	void findLoopJoints(StringVector &rigidBodies)
-	{
-		if ( !hasRigidBody(rigidBodies) )
-		{
-			rigidBodies.push_back(mRigidBody);
-		}
-		else
-		{
-			mIsLoopJoint = true;
-		}
-		for (auto &i : mChildren)
-		{
-			i->findLoopJoints(rigidBodies);
-		}
-	}
-
 	// Return the number of children links
 	virtual uint32_t getChildCount(void) const override final
 	{
@@ -264,6 +230,14 @@ public:
 		return ret;
 	}
 
+	void getLinks(LinkVector &links)
+	{
+		links.push_back(this);
+		for (auto &i : mChildren)
+		{
+			i->getLinks(links);
+		}
+	}
 
 	bool			mIsLoopJoint{ false };
 	std::string		mJointName;		// Empty string if the root node
@@ -341,10 +315,48 @@ public:
 		return ret;
 	}
 
-	void findLoopJoints(void)
+	// Must find loop joints in the same order they were originally defined!
+	void findLoopJoints(const JointRefVector &joints)
 	{
+		// Get the list of links as a flat array...
+		LinkVector links;
+		mRoot->getLinks(links);
+		// We are going to now sort them in order..
+		LinkVector sortLinks;
+		for (auto &i : joints)
+		{
+			// for each original source joint...
+			for (auto &j : links)
+			{
+				if (j->mJointName == i.mName)
+				{
+					sortLinks.push_back(j);
+					break;
+				}
+			}
+		}
 		StringVector rigidBodies;
-		mRoot->findLoopJoints(rigidBodies);
+		rigidBodies.push_back(mRoot->mRigidBody); // add the root node rigid body
+		for (auto &i : sortLinks)
+		{
+			bool isLoopJoint = false;
+			for (auto &j : rigidBodies)
+			{
+				if (j == i->mRigidBody)
+				{
+					isLoopJoint = true;
+					break;
+				}
+			}
+			if (isLoopJoint)
+			{
+				i->mIsLoopJoint = true;
+			}
+			else
+			{
+				rigidBodies.push_back(i->mRigidBody);	// add this rigid body to the list of rigid bodies..
+			}
+		}
 	}
 
 	void debugPrint(void)
@@ -436,14 +448,19 @@ public:
 		bool ret = false;
 
 		std::string jointId(_jointId);
+
 		if ( !findJointRef(jointId ))
 		{
-			JointRef j;
-			j.mName = jointId;
-			j.mBody0 = std::string(body0);
-			j.mBody1 = std::string(body1);
-			mJoints.push_back(j);
-			ret = true;
+			// We cannot add a joint unless it refers to known existing rigid bodies
+			if (findRigidBodRef(body0) && findRigidBodRef(body1))
+			{
+				JointRef j;
+				j.mName = jointId;
+				j.mBody0 = std::string(body0);
+				j.mBody1 = std::string(body1);
+				mJoints.push_back(j);
+				ret = true;
+			}
 		}
 
 		return ret;
@@ -469,6 +486,17 @@ public:
 	{
 		uint32_t ret = 0;
 
+#if 0
+		//
+		for (auto &i : mJoints)
+		{
+			printf("Joint(%s) (%s)->(%s)\r\n",
+				i.mName.c_str(),
+				i.mBody0.c_str(),
+				i.mBody1.c_str());
+		}
+		//
+#endif
 		// Step number one, identify all rigid bodies which are not referenced by any joint
 		// and add them to the disconnected rigid bodies list
 		checkForDisconnectedRigidBodies();
@@ -545,7 +573,7 @@ public:
 		// Search for and flag any loop joints in each hierarchy
 		for (auto &i : mHierarchies)
 		{
-			i->findLoopJoints();
+			i->findLoopJoints(mJoints);
 		}
 
 		return ret;
