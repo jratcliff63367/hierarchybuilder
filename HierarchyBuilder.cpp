@@ -239,6 +239,11 @@ public:
 		}
 	}
 
+	virtual const char *getRigidBody(void) const override final
+	{
+		return mRigidBody.c_str();
+	}
+
 	bool			mIsLoopJoint{ false };
 	std::string		mJointName;		// Empty string if the root node
 	std::string		mRigidBody;
@@ -484,19 +489,6 @@ public:
 	// Build the hierarchy and return the number of unique hierarchies found
 	virtual uint32_t build(void) override final
 	{
-		uint32_t ret = 0;
-
-#if 0
-		//
-		for (auto &i : mJoints)
-		{
-			printf("Joint(%s) (%s)->(%s)\r\n",
-				i.mName.c_str(),
-				i.mBody0.c_str(),
-				i.mBody1.c_str());
-		}
-		//
-#endif
 		// Step number one, identify all rigid bodies which are not referenced by any joint
 		// and add them to the disconnected rigid bodies list
 		checkForDisconnectedRigidBodies();
@@ -576,7 +568,7 @@ public:
 			i->findLoopJoints(mJoints);
 		}
 
-		return ret;
+		return uint32_t(mHierarchies.size());
 	}
 
 	virtual void release(void) override final
